@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- always put your name in your work -->
+    <meta name="author" content="Robbie Ha">
+    <!-- stop the web browser from ever caching this page or its images -->
+    <meta http-equiv="Cache-Control" content="no-cache" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <!-- libraries neded for this page -->
+
+    <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.13/vue.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/4.12.0/firebase.js"></script>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vuefire/1.4.5/vuefire.js"></script>
+    <link href="https://fonts.googleapis.com/css?family=Rajdhani" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=IBM+Plex+Sans+Condensed" rel="stylesheet">
+    <!-- support for this page -->
+    <link rel="stylesheet" href="style.css">
+    <script src="trello.js" async></script>
+    <title>Trell(u)</title>
+</head>
+<body>
+    <header class="header">
+        <h1>Trell(U)</h1>
+        <p id="joke">u for "unique"</p>
+    </header>
+
+    <div id="trelloapp" class = "container">
+        <!-- this is the intro page / user page -->
+        <div v-if="newUser">
+            <section v-cloak>
+                <hr>
+                <br>
+                <br>
+                <h2>Hi there!</h2>
+                <p class="starters">Sign in/up w/ your name and email</p>
+                <input class="question"
+                       placeholder="What is your name?"
+                       v-model="newUsername">
+                <input class="question"
+                       placeholder="What is your email?"
+                       v-model="newEmail">
+                <button class="btn" @click="addUser">Submit!</button>
+            </section>
+            <section class="main" v-cloak>
+                <p class="starters">Current User: {{ currentUsername }}</p>
+            </section>
+            <section class="actions">
+                <form id="form" @submit.prevent="storeProfileImage">
+                    <div>
+                        <input type="file" id="yfiles" name="files[]" />
+                    </div>
+                    <div>
+                        <input type="submit" value="Add Profile Pic" />
+                    </div>
+                    <div class="image" v-for="img in profilePic()">
+                        <h3>Nice face, {{ img.username }}!</h3>
+                        <img :src="img.url">
+                        <button @click="removeProfileImage(img)">Remove</button>
+                    </div>
+                </form>
+            </section>
+            <img>
+            <button @click="enterSetter" class="btn" id="enterButton">Enter Website</button>
+            <br>
+            <br>
+            <hr>
+        </div>
+            
+            
+        <div v-if="!newUser">
+            <div v-if="expanded">
+                <p>Welcome, {{ currentUsername }}</p>
+                <button @click="newUser = !newUser" class="btn" id="edituser">Edit User</button>
+                <div v-if="!activityView">
+                    <button class="btn" @click="activityView = !activityView" id="activityID">View Activity Log</button>
+                </div>
+                <div v-if="activityView">
+                    <ul id="activityViewer">
+                        <li class="activityViewer" v-for="activity in activities">{{ activity.activity }} on {{ activity.time }}</li>
+                    </ul>
+                    <button class="btn" @click="activityView = !activityView">Hide Activities</button>
+                </div>
+                <div v-if="!customize">
+                    <button class="btn" @click="customize = !customize">Customize Website</button>
+                </div>
+                <!-- project customizer -->
+
+                <div v-if="customize">
+                    <p>Change the color</p>
+                    <input type="color" name="favcolor" value="#ff0000" v-model="backgroundColor">
+                    <button @click="submitColorSetter">Submit!</button>
+                    <p>...or upload a background photo</p>
+                    <form id="form" @submit.prevent="storeBackgroundImage">
+                        <div>
+                            <input type="file" id="xfiles" name="files[]" />
+                        </div>
+                        <div>
+                            <input type="submit" value="Upload File" />
+                        </div>
+                    </form>
+                    <button @click="backgroundSetter">Picture Set</button>
+                    <button @click="customize = !customize" class="btn">Minimize Customization</button>
+
+                </div>
+
+                <section v-cloak>
+                    <!-- make and edit color of categories -->
+                    <p>Category Maker</p>
+                    <input placeholder="Category Name"
+                           v-model="newCategory">
+                    <input type="color" name="favcolor" value="#ff0000" v-model="newColor">
+                    <button class ="btn" @click="addCategory">Submit!</button>
+                    <button @click="expanded = !expanded" class="btn expandedChanger">&uarr;&uarr;&uarr;&uarr;&uarr;Hide&uarr;&uarr;&uarr;&uarr;&uarr;</button>
+                    <hr>
+
+                </section>
+
+            </div>
+            <button v-if="!expanded "@click="expanded = !expanded" class="btn expandedChanger">&darr;&darr;&darr;&darr;&darr;Show&darr;&darr;&darr;&darr;&darr;</button>
+            <!-- colorize the cards with the color of the category -->
+
+            <button class ="btn" @click="categoryColorSetter">Colorize Cards</button>
+            <button class="categoryFilterReset btn">Reset Filter</button>
+
+            <div class="row categoryList" >
+                <div v-for="categoryObjects in categories" class="categoryboxes col-md-3" >
+                    <button @click="removeCategory(categoryObjects)">X</button>
+                    <button :id="categoryObjects.name" class="btn categoryFilterButton">{{ categoryObjects.name }}</button>
+                    <input @change="editCategory(categoryObjects.color, categoryObjects)" type="color" name="favcolor" :value="categoryObjects.color" v-model="categoryObjects.color">
+                </div>
+            </div>
+            <br>
+            <!-- all the lists -->
+            <div class="row">
+                <div class="col-sm-4 listCard"
+                        v-for="listObjects in listList">
+                    <div class="card listCarder">
+                        <div class="card-header" v-if="!listObjects.edit">{{ listObjects.title }}</div>
+                        <div class="card-header" v-if="listObjects.edit">
+                            <input class="new-list-title"
+                                   placeholder="New List Title"
+                                   v-model="listObjects.newCardTitle"
+                                   @keyup.enter="editListTitle(listObjects)"
+                                   >
+                        </div>
+
+                        <label>{{ listObjects.username }}</label>
+                        <label>{{ listObjects.email }}</label>
+                        <!-- clicking this removes the todo item from the data structure -->
+
+                        <div class="card-block">
+                            <a href="#" class="btn btn-primary arrower" @click="moveLeftListItem(listObjects)">&larr;</a>
+                            <a href="#" class="btn btn-primary"
+                               @click="listObjects.show = !listObjects.show">...</a>
+                            <a href="#" class="btn btn-primary executer" @click="removeListItem(listObjects)">Delete</a>
+                            <a href="#" class="btn btn-primary" @click="listObjects.edit = !listObjects.edit">Edit</a>
+                            <a href="#" class="btn btn-primary arrower" @click="moveRightListItem(listObjects)">&rarr;</a>
+                        </div>
+                        <br>
+                        <a href="#" class="btn btn-primary" @click="listObjects.create = !listObjects.create">Add a Card!</a>
+                        <div class="card-block" v-if="!listObjects.create">
+                            <p>Make a Card! Press enter!</p>
+                            <section v-cloak>
+                                <input placeholder="New Card Title"
+                                    v-model="listObjects.newCardTitle"
+                                    @keyup.enter="addCard(listObjects)" 
+                                    >
+                            </section>
+                            <br>
+                            <br>
+                        </div>
+                        <!-- all the cards of that list -->
+                        <div class="card cardLite" :title="actualCards.category"
+                            v-for="actualCards in cardsOfList(listObjects)"
+                            v-if="listObjects.show">
+                            <div v-if="actualCards.show">
+                                <h4 class="card-title">{{ actualCards.cardTitle }}</h4>
+                                <hr :class="actualCards.category">
+                                <div v-if="!actualCards.maximize"> 
+                                    <p class="infoCard">Description: {{ actualCards.description }}</p>
+                                    <p class="infoCard">Category: {{ actualCards.category }}</p>
+                                    <p class="infoCard">Deadline: {{ actualCards.deadline }}</p>
+                                    <span class="infoCard">Created On: {{ actualCards.startline }}</span>
+                                    <p class="infoCard">Creator: {{ listObjects.username }}</p>
+                                    <p class="infoCard">Other Users:</p>
+                                    <ul class="list-group list-group-flush">
+                                        <li class="list-group-item"
+                                            v-for="cardUsers in cardUsersOfCard(actualCards)">
+                                            <div class="card-block">
+                                                <button @click="removeCardUser(cardUsers)">X</button>
+                                                <span>{{ cardUsers.title }}</span>
+                                            </div>
+                                        </li>
+                                    </ul>
+                                    <p class="infoCardSuper">ToDo List</p>
+                                    <section v-cloak>
+                                        <input placeholder="Activity"
+                                            v-model="actualCards.newTodoTitle"
+                                            @keyup.enter="addToDoList (actualCards)" 
+                                            >
+                                    </section>
+                                    <ul class="list-group list-group-flush">
+                                        <li class="list-group-item"
+                                            v-for="todoItems in todoOfCard(actualCards)">
+                                            <div class="card-block">
+                                                <button @click="removeTodoItem(todoItems)">X</button>
+                                                <span>{{ todoItems.title }}</span>
+                                            </div>
+                                        </li>
+                                    </ul>
+                                    <p class="infoCardSuper">Comments</p>
+                                    <section v-cloak>
+                                        <textarea name="message" rows="2" cols="30" placeholder="new comment"
+                                            v-model="actualCards.newComment" @keyup.enter="addComments(actualCards)">
+                                        </textarea>
+
+                                    </section>
+                                    <ul class="list-group list-group-flush">
+                                        <li class="list-group-item"
+                                            v-for="comments in commentsOfCard(actualCards)">
+                                            <div class="card-block">
+                                                <button @click="removeComment(comments)">X</button>
+                                                <span>{{ comments.title }}</span>
+                                            </div>
+                                        </li>
+                                    </ul>
+                                    <p class="infoCardSuper">Add a photo! Title required</p>
+                                    <section class="actions">
+                                        <form id="form" @submit.prevent="storeImage(actualCards)">
+                                            <div>
+                                                <label for="imgTitle">Title:</label>
+                                                <input type="text" id="imgTitle" v-model="actualCards.newImageTitle">
+                                                <input type="file" id="files" name="files[]" />
+                                            </div>
+                                            <div>
+                                                <input type="submit" value="Add Image" />
+                                            </div>
+                                        </form>
+                                    </section>
+
+                                    <div class="card-block">
+                                        <div class="image"
+                                             v-for="img in imagesOfCard(actualCards)">
+
+                                            <h3>{{ img.title }}</h3>
+                                            <button @click="removeImage(img)">X</button>
+                                            <img :src="img.url">
+                                        </div>
+                                    </div>
+
+                                </div>
+                                <div class="card-block">
+                                    <a href="#" class="btn btn-primary arrower" @click="moveCardLeft(actualCards,listObjects)">&larr;</a>
+                                    <a href="#" class="btn btn-primary"
+                                       @click="actualCards.show = !actualCards.show">Edit</a>
+                                    <a href="#" class="btn btn-primary"
+                                       v-if="actualCards.maximize"
+                                       @click="actualCards.maximize = !actualCards.maximize">Expand</a>
+                                    <a href="#" class="btn btn-primary"
+                                       v-if="!actualCards.maximize"
+                                       @click="actualCards.maximize = !actualCards.maximize">Minimize</a>
+                                    <a href="#" class="btn btn-primary executer" @click="removeCard(actualCards)">Delete</a>
+                                    <a href="#" class="btn btn-primary arrower" @click="moveCardRight(actualCards,listObjects)" >&rarr;</a>
+                                </div>
+                            </div>
+                            <!-- the editor of the card -->
+                            <div class="extraInformation" v-if="!actualCards.show">
+                                <h5>Title:</h5>
+                                <section v-cloak>
+                                    <input 
+                                        :placeholder="actualCards.cardTitle"
+                                        v-model="listObjects.newCardTitle"
+                                         >
+                                </section>
+                                <h5>Description:</h5>
+                                <section v-cloak>
+                                    <textarea name="message" rows="3" cols="30" :placeholder="actualCards.description"
+                                            v-model="listObjects.newDescription">
+                                    </textarea>
+
+                                </section>
+                                <h5>Category:</h5>
+                                <section v-cloak>
+                                    <select name="basic-dropdown" v-model="listObjects.newCategory">
+                                        <option v-for="categoryObjects in categories">{{ categoryObjects.name }}</option>
+                                    </select>
+                                </section>
+                                <h5>Add Users:</h5>
+                                <section v-cloak>
+                                    <select name="basic-dropdown" v-model="listObjects.newCardUser">
+                                        <option v-for="cardUser in users">{{ cardUser.username }}</option>
+                                    </select>
+                                </section>
+                                <div class="card-block">
+                                <p>What is the Deadline for the Project?</p>
+                                <section v-cloak>
+                                    <input id="date" type="date" :placeholder="actualCards.deadline" v-model="listObjects.newDeadline">
+                                </section>
+                                </div>
+
+                                <a href="#" class="btn btn-primary executer" @click="editActualCard(actualCards,listObjects)">Apply Changes</a>
+                                <a href="#" class="btn btn-primary" @click="actualCards.show = !actualCards.show">Cancel</a>
+                                <br>  
+                            </div>
+                        </div> 
+                    </div>
+                </div>
+
+                <div class="col-sm-4">
+                    <div class="card listCarder">
+                        <div class="card-header">Make a New List!</div>
+                        <br>
+                        <div class="card-block">
+                            <section v-cloak>
+                                <input 
+                                    placeholder="New List Title"
+                                       v-model="newTitle"
+                                       >
+                            </section>
+                        </div>
+                        <br>
+                        <ul class="list-group list-group-flush">
+                            <a href="#" class="btn btn-primary" @click="addList">Add</a>
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    
+    </div>
+</body>
+</html>
